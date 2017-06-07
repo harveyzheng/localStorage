@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Scanning</title>
+<style>
+input{width:600px;height:38px;line-height: 38px;font-size: 32px;border:1px solid #ccc;outline: none;}
+table{font-size: 14px;margin:20px 0;}
+table,table tr,table tr td{border-collapse: collapse;border-spacing: 0;border:1px solid #ccc;}
+td{padding:5px;}
+.operation{ text-align: center;}
+.operation button{ margin: 0 5px;}
+#export{ width: 604px; display: block; line-height: 30px; margin-bottom: 30px;}
+</style>
+</head>
+<body>
+
+<input type="textbox" id="coding" maxlength="24" />
+<table id="table-main">
+	<tr id="num-data">
+		<td width="220">编号</td>
+		<td width="100">尺码</td>
+		<td width="100">数量</td>
+		<td width="139">操作</td>
+	</tr>
+</table>
+<button id="export">导出数据</button>
+<button id="clear">清除</button>
+<script src="https://cdn.bootcss.com/jquery/3.2.1/jquery.min.js"></script>
+<script>
+	
+document.onkeydown=function(event){
+    var e = event || window.event || arguments.callee.caller.arguments[0];
+	if(e && e.keyCode==13){	
+		var _code=$("#coding").val();
+		if(_code){
+			var _size=_code.substr(-3);
+			var _index=$.inArray(_code,local.code);
+			if(_index=='-1'){
+				var _num=1;
+				local.data(_code,_num);
+				local.addtd(_code,_size,_num);
+			}else{
+				var _num=Number(local.num[_index])+1;
+				local.data(_index,_num,'modify');
+				$('.code').each(function(){
+					if($(this).text()==_code){
+						$(this).siblings('.num').text(_num);
+						return;
+					}
+				});
+			}
+		}else{
+			alert('编码错误！');
+		}
+		$('#coding').val('').focus();
+	}else{
+		$('#coding').focus();
+	}
+}; 
+
+var local={
+	//存储的数组
+	code:[],
+	num:[],
+	//存储方法
+	data:function(code,num,modify){
+		if(localStorage.code&&localStorage.num){
+			local.code=local.read('code');
+			local.num=local.read('num');
+		}
+		if(modify=='modify'){
+			local.num[code]=num;
+			localStorage.num=local.num;
+		}else{
+			local.code.push(code);
+			local.num.push(num);
+			localStorage.code=local.code;
+			localStorage.num=local.num;
+		}
+	},
+	//读取数组方法
+	read:function(type){
+		if(localStorage.code&&localStorage.num){
+			if(type=='code'){
+				var str=localStorage.code;
+				return str.split(",");
+			}else{
+				var str=localStorage.num;
+				return str.split(",");
+			}
+		}else{
+			return false;
+		}
+	},
+	//清除方法
+	remove:function(){
+		localStorage.clear();
+		local.code=[];
+		local.num=[];
+		history.go(0);
+	},
+	//添加数据元素
+	addtd:function(code,size,num){
+		$('#num-data').after(
+			"<tr>"+
+				"<td class='code'>"+code+"</td>"+
+				"<td class='size'>"+size+"</td>"+
+				"<td class='num'>"+num+"</td>"+
+				"<td class='operation'><button class='mod'>修改</button><button class='del'>删除</button></td>"+
+			"</tr>"
+		);
+	},
+	//初始化
+	innt:function(){
+		$("#coding").focus();
+		var code=local.read('code');
+		var num=local.read('num');
+		if(code){
+			local.code=local.read('code');
+			local.num=local.read('num');
+			for(var i=0;i<code.length;i++){
+				var size=code[i].substr(-3);
+				local.addtd(code[i],size,num[i]);
+			}
+		}
+	}
+};
+
+var exp={
+	idTmr:null,
+	getExplorer:function(){
+		var explorer = window.navigator.userAgent ;
+	    if (explorer.indexOf("MSIE") >= 0) {
+	        return 'ie';
+	    }
+	    else if (explorer.indexOf("Firefox") >= 0) {
+	        return 'Firefox';
+	    }
+	    else if(explorer.indexOf("Chrome") >= 0){
+	        return 'Chrome';
+	    }
+	    else if(explorer.indexOf("Opera") >= 0){
+	        return 'Opera';
+	    }
+	    else if(explorer.indexOf("Safari") >= 0){
+	        return 'Safari';
+	    }
+	},
+	method:function(tableid){
+		if(exp.getExplorer()=='ie'){
+	        var curTbl = document.getElementById(tableid);
+	        var oXL = new ActiveXObject("Excel.Application");
+	        var oWB = oXL.Workbooks.Add();
+	        var xlsheet = oWB.Worksheets(1);
+	        var sel = document.body.createTextRange();
+	        sel.moveToElementText(curTbl);
+	        sel.select();
+	        sel.execCommand("Copy");
+	        xlsheet.Paste();
+	        oXL.Visible = true;
+	        try{
+	            var fname = oXL.Application.GetSaveAsFilename("Excel.xls", "Excel Spreadsheets (*.xls), *.xls");
+	        }catch(e){
+	            print("Nested catch caught " + e);
+	        }finally{
+	            oWB.SaveAs(fname);
+	            oWB.Close(savechanges = false);
+	            oXL.Quit();
+	            oXL = null;
+	            exp.idTmr = window.setInterval("exp.Cleanup();", 1);
+	        }
+	    }else{
+	        exp.tableToExcel(tableid)
+	    }
+	},
+	Cleanup:function(){
+		window.clearInterval(exp.idTmr);
+    	CollectGarbage();
+	},
+	tableToExcel:(function(){
+	    var uri = 'data:application/vnd.ms-excel;base64,',
+	            template = '<html><head><meta charset="UTF-8"></head><body><table>{table}</table></body></html>',
+	            base64 = function(s){ return window.btoa(unescape(encodeURIComponent(s))) },
+	            format = function(s, c){
+	                return s.replace(/{(\w+)}/g,
+	                        function(m, p) { return c[p]; }) }
+	    return function(table, name) {
+	        if(!table.nodeType) table = document.getElementById(table)
+	        var ctx = {worksheet: name || 'Worksheet', table: table.innerHTML}
+	        window.location.href = uri + base64(format(template, ctx))
+	    }
+	})()
+}
+
+//初始化
+local.innt();
+
+//导出excel
+$('#export').click(function(){
+	exp.method('table-main');
+});
+
+//删除/修改
+$(document).on('click','.operation button',function(){
+	var pet=$(this).parents('tr');
+	var code=pet.find('.code').text();
+	var index=$.inArray(code,local.code);
+	if($(this).hasClass('del')){
+		if(confirm("确定要删除这条数据？")){
+			local.code.splice(index,1);
+			local.num.splice(index,1);
+			pet.remove();
+			localStorage.code=local.code;
+			localStorage.num=local.num;
+		}
+	}else{
+		var pro=prompt('修改数量',local.num[index]);
+		local.num[index]=pro;
+		localStorage.num=local.num;
+		pet.find('.num').text(pro);
+	}
+});
+
+//清除，测试用，可去掉
+$('#clear').click(function(){
+	local.remove();
+});
+</script>
+</body>
+</html>
+
+<!-- 
+需要注意的问题：
+1. 一定要在英文输入法状态
+2. 一定要在输入框焦点上
+3. 录入数据产生以后不要关闭或刷新页面，数据将全部丢失
+-->
